@@ -217,3 +217,61 @@ class SRTF(Scheduler):
                     completed[next_process] = True
                     self.turnaround_times[next_process] = self.current_time - self.processes[next_process]["arrival_time"]
      
+class HRRN(Scheduler):
+    def run(self):
+        num_processes = len(self.processes)
+        remaining_burst_time = [p["burst_time"] for p in self.processes]
+        arrival_time = [p["arrival_time"] for p in self.processes]
+        completed = [False] * num_processes
+
+        while any(not comp for comp in completed):
+            next_process = -1
+            max_response_ratio = -1
+
+            for i in range(num_processes):
+                if not completed[i] and arrival_time[i] <= self.current_time:
+                    response_time = (self.current_time - arrival_time[i] + remaining_burst_time[i])
+                    response_ratio = response_time / remaining_burst_time[i]
+                    
+                    if response_ratio > max_response_ratio:
+                        max_response_ratio = response_ratio
+                        next_process = i
+
+            if next_process == -1:
+                next_times = [arrival_time[i] for i in range(num_processes) if not completed[i]]
+                self.current_time = min(next_times)
+            else:
+                self.waiting_times[next_process] = self.current_time - arrival_time[next_process]
+                start_time = self.current_time
+                self.current_time += remaining_burst_time[next_process]
+                self.turnaround_times[next_process] = self.current_time - arrival_time[next_process]
+                self.completion_times[next_process] = self.current_time
+                completed[next_process] = True
+                self.gantt_chart.append((start_time, self.current_time, self.processes[next_process]['process_id'], colormap(next_process / num_processes)))
+
+class LJF(Scheduler):
+    def run(self):
+        self.processes.sort(key=lambda x: x["burst_time"], reverse=True)
+        completed = [False] * self.num_processes
+
+        while any(not comp for comp in completed):
+            next_process = -1
+
+            for i in range(self.num_processes):
+                if not completed[i] and self.processes[i]["arrival_time"] <= self.current_time:
+                    next_process = i
+                    break
+
+            if next_process == -1:
+                future_arrivals = [p["arrival_time"] for i, p in enumerate(self.processes) if not completed[i]]
+                self.current_time = min(future_arrivals)
+                continue
+
+            start_time = self.current_time
+            self.current_time += self.processes[next_process]["burst_time"]
+            self.completion_times[next_process] = self.current_time
+            completed[next_process] = True
+
+            self.turnaround_times[next_process] = self.current_time - self.processes[next_process]["arrival_time"]
+            self.waiting_times[next_process] = self.turnaround_times[next_process] - self.processes[next_process]["burst_time"]
+            self.gantt_chart.append((start_time, self.current_time, self.processes[next_process]['process_id'], colormap(next_process / self.num_processes)))
